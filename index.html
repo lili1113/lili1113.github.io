@@ -2,123 +2,177 @@
 <html>
 <head>
     <style>
-        /* 基础样式...（保留之前的样式） */
+        /* 更新后的样式 */
+        :root {
+            --bg-color: #f0f0f0;
+            --node-color: #ffffff;
+            --line-color: #666;
+        }
 
-        /* 新增控制面板样式 */
+        .dark-theme {
+            --bg-color: #2d2d2d;
+            --node-color: #444;
+            --line-color: #888;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            transition: background 0.3s;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        .skill-tree {
+            position: relative;
+            min-height: 100vh;
+            padding: 50px;
+        }
+
+        .skill-node {
+            position: absolute;
+            width: 120px;
+            min-height: 60px;
+            padding: 10px;
+            background: var(--node-color);
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .connector {
+            position: absolute;
+            height: 2px;
+            background: var(--line-color);
+            transform-origin: 0 50%;
+            z-index: -1;
+        }
+
+        .selected {
+            transform: scale(1.05);
+            box-shadow: 0 0 10px #2196F3;
+        }
+
+        .completed {
+            background: #c8e6c9 !important;
+        }
+
+        /* 控制面板样式 */
         .control-panel {
             position: fixed;
             top: 20px;
             left: 20px;
             background: rgba(255,255,255,0.9);
-            padding: 20px;
-            border-radius: 10px;
+            padding: 15px;
+            border-radius: 8px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             z-index: 1000;
-        }
-
-        .control-group {
-            margin-bottom: 15px;
         }
 
         button {
             padding: 8px 15px;
             margin: 5px;
             border: none;
-            border-radius: 5px;
+            border-radius: 4px;
             cursor: pointer;
             background: #4CAF50;
             color: white;
-            transition: background 0.3s;
+            transition: all 0.2s;
         }
 
         button.delete {
             background: #f44336;
         }
 
-        /* 完善编辑面板样式 */
         #editPanel {
             position: fixed;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background: var(--node-color);
+            background: white;
             padding: 20px;
             border-radius: 10px;
             box-shadow: 0 5px 15px rgba(0,0,0,0.2);
             z-index: 1001;
         }
-
-        .selected {
-            outline: 2px solid #2196F3 !important;
-        }
     </style>
 </head>
 <body>
-    <!-- 新增控制面板 -->
     <div class="control-panel">
-        <div class="control-group">
-            <button onclick="createRootNode()">+ 添加根节点</button>
-            <button class="delete" onclick="deleteSelectedNode()">- 删除选中节点</button>
-            <button class="delete" onclick="clearAllNodes()">清空所有节点</button>
-        </div>
-        <div class="control-group">
-            <span id="selectedInfo">当前选中节点：无</span>
-        </div>
+        <button onclick="createRootNode()">+ 根节点</button>
+        <button class="delete" onclick="deleteSelectedNode()">- 删除节点</button>
+        <button onclick="toggleTheme()">切换主题</button>
     </div>
 
-    <!-- 保留原有结构... -->
+    <div class="skill-tree" id="tree"></div>
+
+    <div id="editPanel" style="display: none;">
+        <h3 style="margin-top:0">节点设置</h3>
+        <div class="form-group">
+            <label>计划时长：</label>
+            <input type="number" id="planHours" min="0">
+        </div>
+        <div class="form-group">
+            <label>添加时长：</label>
+            <input type="number" id="addHours" min="0">
+        </div>
+        <div class="form-group">
+            <label>学习笔记：</label>
+            <textarea id="notes" rows="4"></textarea>
+        </div>
+        <button onclick="saveNode()">保存</button>
+        <button onclick="closePanel()">关闭</button>
+    </div>
 
 <script>
-// 原有数据结构和基础函数...
+// 技能树数据结构
+let nodes = JSON.parse(localStorage.getItem('skillTree')) || [];
+let selectedNodeId = null;
 
-// 新增控制函数
-function createRootNode() {
-    const position = {
-        x: window.innerWidth/2 - 60,
-        y: 100
-    };
-    createNode(null, position);
+class SkillNode {
+    constructor(id, parentId, position) {
+        this.id = id;
+        this.parentId = parentId;
+        this.position = position;
+        this.planHours = 0;
+        this.loggedHours = 0;
+        this.notes = "";
+        this.completed = false;
+        this.children = [];
+    }
 }
 
-function deleteNode(nodeId) {
-    // 递归删除所有子节点
-    const deleteRecursive = (id) => {
-        nodes = nodes.filter(n => n.id !== id);
-        nodes.filter(n => n.parentId === id).forEach(n => deleteRecursive(n.id));
+// 核心功能实现
+function createNode(parentId, position) {
+    const newNode = new SkillNode(Date.now(), parentId, position);
+    nodes.push(newNode);
+    if (parentId) {
+        const parent = nodes.find(n => n.id === parentId);
+        parent.children.push(newNode.id);
     }
-    deleteRecursive(nodeId);
     saveTree();
     renderTree();
 }
 
-function deleteSelectedNode() {
-    if (selectedNodeId) {
-        deleteNode(selectedNodeId);
-        selectedNodeId = null;
+function deleteNode(nodeId) {
+    const deleteChildren = (id) => {
+        const node = nodes.find(n => n.id === id);
+        node.children.forEach(deleteChildren);
+        nodes = nodes.filter(n => n.id !== id);
     }
+    deleteChildren(nodeId);
+    saveTree();
+    renderTree();
 }
 
-function clearAllNodes() {
-    if (confirm("确定要清空所有节点吗？")) {
-        nodes = [];
-        saveTree();
-        renderTree();
-    }
-}
-
-// 完善节点选择功能
-function selectNode(nodeId) {
-    selectedNodeId = nodeId;
-    document.querySelectorAll('.skill-node').forEach(n => n.classList.remove('selected'));
-    document.querySelector(`.skill-node[data-id="${nodeId}"]`).classList.add('selected');
-    document.getElementById('selectedInfo').textContent = `当前选中节点：${nodeId}`;
-}
-
-// 修改后的节点渲染
 function renderTree() {
     const container = document.getElementById('tree');
     container.innerHTML = '';
-    
+
+    // 绘制连接线
     nodes.forEach(node => {
         if (node.parentId) {
             const parent = nodes.find(n => n.id === node.parentId);
@@ -126,16 +180,16 @@ function renderTree() {
         }
     });
 
+    // 绘制节点
     nodes.forEach(node => {
         const nodeEl = document.createElement('div');
-        nodeEl.className = `skill-node ${node.completed ? 'completed' : ''}`;
+        nodeEl.className = `skill-node ${node.completed ? 'completed' : ''} ${selectedNodeId === node.id ? 'selected' : ''}`;
         nodeEl.style.left = `${node.position.x}px`;
         nodeEl.style.top = `${node.position.y}px`;
-        nodeEl.setAttribute('data-id', node.id);
         nodeEl.innerHTML = `
-            <h4>节点 ${node.id}</h4>
-            <div>进度：${node.loggedHours}/${node.planHours}h</div>
-            <div>${node.completed ? '✓ 已完成' : '进行中'}</div>
+            <div>节点 ${node.id.toString().slice(-4)}</div>
+            <div>${node.loggedHours}/${node.planHours}h</div>
+            ${node.completed ? '<div>✓ 完成</div>' : ''}
         `;
 
         nodeEl.onclick = (e) => {
@@ -153,78 +207,109 @@ function renderTree() {
     });
 }
 
-// 完善编辑面板功能
-function showEditPanel(node) {
-    const panel = document.getElementById('editPanel');
-    panel.innerHTML = `
-        <h3>编辑节点 ${node.id}</h3>
-        <div class="form-group">
-            <label>计划时长：</label>
-            <input type="number" id="planHours" value="${node.planHours}">
-        </div>
-        <div class="form-group">
-            <label>添加学习时长：</label>
-            <input type="number" id="addHours" min="0">
-        </div>
-        <div class="form-group">
-            <label>学习笔记：</label>
-            <textarea id="notes" rows="4">${node.notes}</textarea>
-        </div>
-        <button onclick="saveNodeChanges(${node.id})">保存</button>
-        <button onclick="this.parentElement.style.display='none'">关闭</button>
-    `;
-    panel.style.display = 'block';
+// 交互功能
+function createRootNode() {
+    createNode(null, {
+        x: window.innerWidth/2 - 60,
+        y: 100
+    });
 }
 
-function saveNodeChanges(nodeId) {
-    const node = nodes.find(n => n.id === nodeId);
+function deleteSelectedNode() {
+    if (selectedNodeId) {
+        deleteNode(selectedNodeId);
+        selectedNodeId = null;
+    }
+}
+
+function selectNode(id) {
+    selectedNodeId = id;
+    renderTree();
+}
+
+function showEditPanel(node) {
+    const panel = document.getElementById('editPanel');
+    panel.style.display = 'block';
+    document.getElementById('planHours').value = node.planHours;
+    document.getElementById('addHours').value = '';
+    document.getElementById('notes').value = node.notes;
+}
+
+function saveNode() {
+    const node = nodes.find(n => n.id === selectedNodeId);
     node.planHours = parseInt(document.getElementById('planHours').value) || 0;
     node.loggedHours += parseInt(document.getElementById('addHours').value) || 0;
     node.notes = document.getElementById('notes').value;
     
-    if (node.loggedHours >= node.planHours && node.planHours > 0) {
+    if (node.planHours > 0 && node.loggedHours >= node.planHours) {
         node.completed = true;
     }
     
     saveTree();
     renderTree();
+    closePanel();
 }
 
-// 实现连接线绘制
+function closePanel() {
+    document.getElementById('editPanel').style.display = 'none';
+}
+
 function drawConnection(start, end) {
-    const container = document.getElementById('tree');
     const line = document.createElement('div');
     line.className = 'connector';
     
-    const length = Math.sqrt(
-        Math.pow(end.x - start.x, 2) + 
-        Math.pow(end.y - start.y, 2)
-    );
-    
-    const angle = Math.atan2(
-        end.y - start.y,
-        end.x - start.x
-    );
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const length = Math.sqrt(dx*dx + dy*dy);
+    const angle = Math.atan2(dy, dx);
     
     line.style.width = `${length}px`;
-    line.style.left = `${start.x + 60}px`;  // 60为节点宽度的一半
-    line.style.top = `${start.y + 20}px`;   // 20为节点高度的一半
+    line.style.left = `${start.x + 60}px`;
+    line.style.top = `${start.y + 30}px`;
     line.style.transform = `rotate(${angle}rad)`;
     
-    container.appendChild(line);
+    document.getElementById('tree').appendChild(line);
 }
 
-// 点击空白处取消选择
+function showContextMenu(e, node) {
+    const menu = document.createElement('div');
+    menu.style.position = 'fixed';
+    menu.style.left = `${e.clientX}px`;
+    menu.style.top = `${e.clientY}px`;
+    menu.style.background = 'white';
+    menu.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
+    menu.innerHTML = `
+        <div style="padding: 10px;">
+            <div onclick="createNode(${node.id}, {x: ${e.clientX}, y: ${e.clientY}}); this.parentElement.remove()">添加子节点</div>
+            <hr style="margin:5px 0">
+            <div style="color:red" onclick="deleteNode(${node.id}); this.parentElement.remove()">删除节点</div>
+        </div>
+    `;
+    
+    document.body.appendChild(menu);
+    setTimeout(() => menu.remove(), 5000);
+}
+
+// 实用功能
+function toggleTheme() {
+    document.body.classList.toggle('dark-theme');
+    renderTree();
+}
+
+function saveTree() {
+    localStorage.setItem('skillTree', JSON.stringify(nodes));
+}
+
+// 初始化
 document.body.onclick = (e) => {
     if (!e.target.closest('.skill-node') && !e.target.closest('#editPanel')) {
         selectedNodeId = null;
-        document.querySelectorAll('.skill-node').forEach(n => n.classList.remove('selected'));
-        document.getElementById('selectedInfo').textContent = '当前选中节点：无';
-        document.getElementById('editPanel').style.display = 'none';
+        renderTree();
+        closePanel();
     }
 };
 
-// 初始化...
+renderTree();
 </script>
 </body>
 </html>
