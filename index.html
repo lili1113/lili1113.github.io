@@ -1,23 +1,145 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <meta charset="utf-8" />
-    <title>tryer unit tests</title>
-    <link rel="stylesheet" href="../node_modules/mocha/mocha.css" />
-  </head>
-  <body>
-    <div id="mocha"></div>
-    <script src="../node_modules/chai/chai.js"></script>
-    <script src="../node_modules/spooks/src/spooks.min.js"></script>
-    <script src="../node_modules/mocha/mocha.js"></script>
-    <script>
-      mocha.setup('tdd');
-    </script>
-    <script src="../lib/tryer.min.js"></script>
-    <script src="unit.js"></script>
-    <script>
-      mocha.checkLeaks();
-      mocha.run();
-    </script>
-  </body>
+<head>
+    <style>
+        :root {
+            --bg-color: #f0f0f0;
+            --node-color: #ffffff;
+            --line-color: #666;
+        }
+
+        .dark-theme {
+            --bg-color: #2d2d2d;
+            --node-color: #444;
+            --line-color: #888;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            transition: background 0.3s;
+        }
+
+        .skill-tree {
+            position: relative;
+            min-height: 100vh;
+            padding: 50px;
+        }
+
+        .skill-node {
+            position: absolute;
+            width: 120px;
+            padding: 10px;
+            background: var(--node-color);
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .connector {
+            position: absolute;
+            background: var(--line-color);
+            transform-origin: 0 50%;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <button onclick="toggleTheme()">切换主题</button>
+    </div>
+    <div class="skill-tree" id="tree"></div>
+
+    <!-- 编辑面板 -->
+    <div id="editPanel" style="display: none;">
+        <input type="number" id="planHours" placeholder="计划时长">
+        <input type="number" id="logHours" placeholder="注入时长">
+        <button onclick="updateNode()">更新</button>
+        <textarea id="notes"></textarea>
+        <div id="completionLog"></div>
+    </div>
+
+<script>
+let nodes = JSON.parse(localStorage.getItem('skillTree')) || [];
+let selectedNodeId = null;
+
+class SkillNode {
+    constructor(id, parentId, position) {
+        this.id = id;
+        this.parentId = parentId;
+        this.position = position;
+        this.planHours = 0;
+        this.loggedHours = 0;
+        this.notes = "";
+        this.completed = false;
+        this.completionLog = [];
+    }
+}
+
+function createNode(parentId, position) {
+    const newNode = new SkillNode(Date.now(), parentId, position);
+    nodes.push(newNode);
+    saveTree();
+    renderTree();
+}
+
+function renderTree() {
+    const container = document.getElementById('tree');
+    container.innerHTML = '';
+    
+    // 绘制连接线
+    nodes.forEach(node => {
+        if (node.parentId) {
+            const parent = nodes.find(n => n.id === node.parentId);
+            drawConnection(parent.position, node.position);
+        }
+    });
+
+    // 绘制节点
+    nodes.forEach(node => {
+        const nodeEl = document.createElement('div');
+        nodeEl.className = `skill-node ${node.completed ? 'completed' : ''}`;
+        nodeEl.style.left = `${node.position.x}px`;
+        nodeEl.style.top = `${node.position.y}px`;
+        nodeEl.innerHTML = `
+            <div>已注入: ${node.loggedHours}/${node.planHours}</div>
+        `;
+        
+        nodeEl.oncontextmenu = (e) => {
+            e.preventDefault();
+            showContextMenu(e, node);
+        };
+        
+        nodeEl.onclick = () => showEditPanel(node);
+        container.appendChild(nodeEl);
+    });
+}
+
+function showEditPanel(node) {
+    const panel = document.getElementById('editPanel');
+    // 更新面板内容...
+    panel.style.display = 'block';
+}
+
+function updateNode() {
+    // 更新节点数据...
+    saveTree();
+    renderTree();
+}
+
+function drawConnection(start, end) {
+    // 计算并绘制连接线...
+}
+
+function toggleTheme() {
+    document.body.classList.toggle('dark-theme');
+}
+
+function saveTree() {
+    localStorage.setItem('skillTree', JSON.stringify(nodes));
+}
+
+// 初始化渲染
+renderTree();
+</script>
+</body>
 </html>
