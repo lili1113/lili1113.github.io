@@ -2,136 +2,30 @@
 <html>
 <head>
     <style>
-        /* 更新后的样式 */
-        :root {
-            --bg-color: #f0f0f0;
-            --node-color: #ffffff;
-            --line-color: #666;
-        }
-
-        .dark-theme {
-            --bg-color: #2d2d2d;
-            --node-color: #444;
-            --line-color: #888;
-        }
-
-        body {
-            background-color: var(--bg-color);
-            transition: background 0.3s;
-            margin: 0;
-            overflow: hidden;
-        }
-
-        .skill-tree {
-            position: relative;
-            min-height: 100vh;
-            padding: 50px;
-        }
-
-        .skill-node {
-            position: absolute;
-            width: 120px;
-            min-height: 60px;
-            padding: 10px;
-            background: var(--node-color);
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            cursor: pointer;
-            transition: all 0.3s;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        .connector {
-            position: absolute;
-            height: 2px;
-            background: var(--line-color);
-            transform-origin: 0 50%;
-            z-index: -1;
-        }
-
-        .selected {
-            transform: scale(1.05);
-            box-shadow: 0 0 10px #2196F3;
-        }
-
-        .completed {
-            background: #c8e6c9 !important;
-        }
-
-        /* 控制面板样式 */
-        .control-panel {
+        /* 保留之前的样式 */
+        .context-menu {
             position: fixed;
-            top: 20px;
-            left: 20px;
-            background: rgba(255,255,255,0.9);
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            z-index: 1000;
-        }
-
-        button {
-            padding: 8px 15px;
-            margin: 5px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            background: #4CAF50;
-            color: white;
-            transition: all 0.2s;
-        }
-
-        button.delete {
-            background: #f44336;
-        }
-
-        #editPanel {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
             background: white;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-            z-index: 1001;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            border-radius: 5px;
+            padding: 10px;
+            z-index: 1002;
+        }
+        .context-menu-item {
+            padding: 8px 15px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .context-menu-item:hover {
+            background: #f0f0f0;
         }
     </style>
 </head>
 <body>
-    <div class="control-panel">
-        <button onclick="createRootNode()">+ 根节点</button>
-        <button class="delete" onclick="deleteSelectedNode()">- 删除节点</button>
-        <button onclick="toggleTheme()">切换主题</button>
-    </div>
-
-    <div class="skill-tree" id="tree"></div>
-
-    <div id="editPanel" style="display: none;">
-        <h3 style="margin-top:0">节点设置</h3>
-        <div class="form-group">
-            <label>计划时长：</label>
-            <input type="number" id="planHours" min="0">
-        </div>
-        <div class="form-group">
-            <label>添加时长：</label>
-            <input type="number" id="addHours" min="0">
-        </div>
-        <div class="form-group">
-            <label>学习笔记：</label>
-            <textarea id="notes" rows="4"></textarea>
-        </div>
-        <button onclick="saveNode()">保存</button>
-        <button onclick="closePanel()">关闭</button>
-    </div>
+    <!-- 保留之前的HTML结构 -->
 
 <script>
-// 技能树数据结构
-let nodes = JSON.parse(localStorage.getItem('skillTree')) || [];
-let selectedNodeId = null;
-
+// 在SkillNode类中添加parent引用
 class SkillNode {
     constructor(id, parentId, position) {
         this.id = id;
@@ -143,173 +37,103 @@ class SkillNode {
         this.completed = false;
         this.children = [];
     }
+
+    get parent() {
+        return nodes.find(n => n.id === this.parentId);
+    }
 }
 
-// 核心功能实现
+// 新增添加父节点功能
+function addParentNode(childId) {
+    const childNode = nodes.find(n => n.id === childId);
+    if (!childNode) return;
+
+    // 创建新父节点
+    const newParent = new SkillNode(
+        Date.now(),
+        childNode.parentId,
+        {x: childNode.position.x, y: childNode.position.y - 100}
+    );
+
+    // 更新关系
+    if (childNode.parentId) {
+        const originalParent = childNode.parent;
+        originalParent.children = originalParent.children.filter(id => id !== childId);
+        originalParent.children.push(newParent.id);
+    }
+    
+    newParent.children.push(childId);
+    childNode.parentId = newParent.id;
+    
+    nodes.push(newParent);
+    saveTree();
+    renderTree();
+}
+
+// 改进的上下文菜单
+function showContextMenu(e, node) {
+    const menu = document.createElement('div');
+    menu.className = 'context-menu';
+    menu.style.left = `${e.clientX}px`;
+    menu.style.top = `${e.clientY}px`;
+    
+    menu.innerHTML = `
+        <div class="context-menu-item" onclick="createNode(${node.id}, getNewChildPosition(${node.id}))">添加子节点</div>
+        <div class="context-menu-item" onclick="addParentNode(${node.id})">添加父节点</div>
+        <div class="context-menu-item" onclick="insertSiblingNode(${node.id})">添加同级节点</div>
+        <hr>
+        <div class="context-menu-item" style="color:red" onclick="deleteNode(${node.id})">删除节点</div>
+    `;
+
+    document.body.appendChild(menu);
+    
+    // 点击其他地方关闭菜单
+    const closeMenu = () => {
+        menu.remove();
+        document.removeEventListener('click', closeMenu);
+    };
+    document.addEventListener('click', closeMenu);
+}
+
+// 自动定位新节点位置
+function getNewChildPosition(parentId) {
+    const parent = nodes.find(n => n.id === parentId);
+    const childCount = parent.children.length;
+    return {
+        x: parent.position.x + (childCount * 140) - 70,
+        y: parent.position.y + 100
+    };
+}
+
+// 添加同级节点功能
+function insertSiblingNode(siblingId) {
+    const current = nodes.find(n => n.id === siblingId);
+    if (!current.parentId) return createRootNode();
+    
+    const parent = current.parent;
+    const newPosition = {
+        x: parent.position.x + (parent.children.length * 140),
+        y: parent.position.y + 100
+    };
+    
+    createNode(parent.id, newPosition);
+}
+
+// 修改后的节点创建逻辑
 function createNode(parentId, position) {
     const newNode = new SkillNode(Date.now(), parentId, position);
     nodes.push(newNode);
+    
     if (parentId) {
         const parent = nodes.find(n => n.id === parentId);
         parent.children.push(newNode.id);
     }
-    saveTree();
-    renderTree();
-}
-
-function deleteNode(nodeId) {
-    const deleteChildren = (id) => {
-        const node = nodes.find(n => n.id === id);
-        node.children.forEach(deleteChildren);
-        nodes = nodes.filter(n => n.id !== id);
-    }
-    deleteChildren(nodeId);
-    saveTree();
-    renderTree();
-}
-
-function renderTree() {
-    const container = document.getElementById('tree');
-    container.innerHTML = '';
-
-    // 绘制连接线
-    nodes.forEach(node => {
-        if (node.parentId) {
-            const parent = nodes.find(n => n.id === node.parentId);
-            drawConnection(parent.position, node.position);
-        }
-    });
-
-    // 绘制节点
-    nodes.forEach(node => {
-        const nodeEl = document.createElement('div');
-        nodeEl.className = `skill-node ${node.completed ? 'completed' : ''} ${selectedNodeId === node.id ? 'selected' : ''}`;
-        nodeEl.style.left = `${node.position.x}px`;
-        nodeEl.style.top = `${node.position.y}px`;
-        nodeEl.innerHTML = `
-            <div>节点 ${node.id.toString().slice(-4)}</div>
-            <div>${node.loggedHours}/${node.planHours}h</div>
-            ${node.completed ? '<div>✓ 完成</div>' : ''}
-        `;
-
-        nodeEl.onclick = (e) => {
-            e.stopPropagation();
-            selectNode(node.id);
-            showEditPanel(node);
-        };
-
-        nodeEl.oncontextmenu = (e) => {
-            e.preventDefault();
-            showContextMenu(e, node);
-        };
-
-        container.appendChild(nodeEl);
-    });
-}
-
-// 交互功能
-function createRootNode() {
-    createNode(null, {
-        x: window.innerWidth/2 - 60,
-        y: 100
-    });
-}
-
-function deleteSelectedNode() {
-    if (selectedNodeId) {
-        deleteNode(selectedNodeId);
-        selectedNodeId = null;
-    }
-}
-
-function selectNode(id) {
-    selectedNodeId = id;
-    renderTree();
-}
-
-function showEditPanel(node) {
-    const panel = document.getElementById('editPanel');
-    panel.style.display = 'block';
-    document.getElementById('planHours').value = node.planHours;
-    document.getElementById('addHours').value = '';
-    document.getElementById('notes').value = node.notes;
-}
-
-function saveNode() {
-    const node = nodes.find(n => n.id === selectedNodeId);
-    node.planHours = parseInt(document.getElementById('planHours').value) || 0;
-    node.loggedHours += parseInt(document.getElementById('addHours').value) || 0;
-    node.notes = document.getElementById('notes').value;
-    
-    if (node.planHours > 0 && node.loggedHours >= node.planHours) {
-        node.completed = true;
-    }
     
     saveTree();
     renderTree();
-    closePanel();
 }
 
-function closePanel() {
-    document.getElementById('editPanel').style.display = 'none';
-}
-
-function drawConnection(start, end) {
-    const line = document.createElement('div');
-    line.className = 'connector';
-    
-    const dx = end.x - start.x;
-    const dy = end.y - start.y;
-    const length = Math.sqrt(dx*dx + dy*dy);
-    const angle = Math.atan2(dy, dx);
-    
-    line.style.width = `${length}px`;
-    line.style.left = `${start.x + 60}px`;
-    line.style.top = `${start.y + 30}px`;
-    line.style.transform = `rotate(${angle}rad)`;
-    
-    document.getElementById('tree').appendChild(line);
-}
-
-function showContextMenu(e, node) {
-    const menu = document.createElement('div');
-    menu.style.position = 'fixed';
-    menu.style.left = `${e.clientX}px`;
-    menu.style.top = `${e.clientY}px`;
-    menu.style.background = 'white';
-    menu.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
-    menu.innerHTML = `
-        <div style="padding: 10px;">
-            <div onclick="createNode(${node.id}, {x: ${e.clientX}, y: ${e.clientY}}); this.parentElement.remove()">添加子节点</div>
-            <hr style="margin:5px 0">
-            <div style="color:red" onclick="deleteNode(${node.id}); this.parentElement.remove()">删除节点</div>
-        </div>
-    `;
-    
-    document.body.appendChild(menu);
-    setTimeout(() => menu.remove(), 5000);
-}
-
-// 实用功能
-function toggleTheme() {
-    document.body.classList.toggle('dark-theme');
-    renderTree();
-}
-
-function saveTree() {
-    localStorage.setItem('skillTree', JSON.stringify(nodes));
-}
-
-// 初始化
-document.body.onclick = (e) => {
-    if (!e.target.closest('.skill-node') && !e.target.closest('#editPanel')) {
-        selectedNodeId = null;
-        renderTree();
-        closePanel();
-    }
-};
-
-renderTree();
+// 保留其他原有函数...
 </script>
 </body>
 </html>
